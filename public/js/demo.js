@@ -102,6 +102,12 @@ async function chat(root,orderId,viewerId,refreshOrder){
   const messages=document.createElement('div');messages.className='chat-messages';messages.setAttribute('aria-live','polite');
   const form=document.createElement('form');const input=document.createElement('textarea');input.required=true;input.maxLength=4000;input.placeholder='Напишите сообщение';input.setAttribute('aria-label','Сообщение');
   const button=document.createElement('button');button.className='button';button.textContent='Отправить';const result=document.createElement('p');result.setAttribute('role','status');form.append(input,button,result);section.append(title,messages,form);root.append(section);
+  input.addEventListener('keydown',event=>{
+    if(event.key==='Enter' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.isComposing && event.keyCode!==229){
+      event.preventDefault();
+      if(!button.disabled && input.value.trim()) form.requestSubmit();
+    }
+  });
   let last='';let inFlight=null;let refreshAgain=false;
   async function refresh(){
     if(inFlight){refreshAgain=true;return inFlight}

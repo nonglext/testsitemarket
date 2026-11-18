@@ -19,7 +19,7 @@ export async function authForm(mode) {
       else root.querySelector('#status').textContent = 'Регистрация завершена. Теперь войдите.';
     } catch (error) { root.querySelector('#status').textContent = error.message; }
   };
-  if (isLogin && location.hash.length === 65) {
+  if (isLogin && location.hash.slice(1).length === 64) {
     await api('/auth/verify', {method:'POST', body:JSON.stringify({token:location.hash.slice(1)})});
     history.replaceState(null, '', location.pathname);
     root.querySelector('#status').textContent = 'Email подтверждён';
