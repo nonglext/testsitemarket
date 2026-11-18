@@ -9,6 +9,7 @@ import {db} from './db.js';
 import {auth,current} from './auth.js';
 import {catalog} from './catalog.js';
 const app=express();
+if (process.env.RENDER === 'true') app.set('trust proxy', 1);
 const root=join(dirname(fileURLToPath(import.meta.url)),'..','public');
 app.disable('x-powered-by');
 app.use(express.json({limit:'100kb'}),cookieParser());
