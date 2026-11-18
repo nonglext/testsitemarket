@@ -1,3 +1,5 @@
 :root[data-theme="light"] { --bg:#f4f4f4; --card:#fff; --border:#d8d8d8; --text:#202329; --muted:#60646c; --accent:#0755a6; --accent-text:#fff; --soft:#eef3f8; --error:#a52727; }
 :root[data-theme="gray"] { --bg:#2b2d31; --card:#35373c; --border:#50535a; --text:#e8e9eb; --muted:#b7bac0; --accent:#86baff; --accent-text:#172332; --soft:#3d424a; --error:#ffaaaa; }
 :root[data-theme="black"] { --bg:#0d0d0d; --card:#161616; --border:#303030; --text:#eee; --muted:#aaa; --accent:#89bfff; --accent-text:#102031; --soft:#20252b; --error:#ffaaaa; }
+:root[data-theme="light"] { --shadow:#0000001a; }
+:root[data-theme="gray"],:root[data-theme="black"] { --shadow:transparent; }

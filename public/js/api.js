@@ -1,1 +1,21 @@
-export async function api(path,options={}){let response=await fetch('/api'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...options});if(response.status===401&&path!='/auth/refresh'){const retry=await fetch('/api/auth/refresh',{method:'POST',credentials:'same-origin'});if(retry.ok)response=await fetch('/api'+path,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...options});}const data=await response.json().catch(()=>({}));if(!response.ok)throw Error(data.error||'Ошибка запроса');return data}
+let refreshRequest;
+
+export async function api(path, options = {}) {
+  const request = () => fetch('/api' + path, {
+    credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json'},
+    ...options,
+  });
+  let response = await request();
+  if (response.status === 401 && path !== '/auth/refresh' && path !== '/auth/login' && path !== '/auth/register') {
+    if (!refreshRequest) {
+      refreshRequest = fetch('/api/auth/refresh', {method: 'POST', credentials: 'same-origin'})
+        .finally(() => { refreshRequest = null; });
+    }
+    const refreshed = await refreshRequest;
+    if (refreshed.ok) response = await request();
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw Error(data.error || 'Ошибка запроса');
+  return data;
+}
