@@ -10,8 +10,10 @@ export function setupRealtime(server) {
     try {
       const url = new URL(request.url, 'http://localhost');
       if (url.pathname !== '/ws') return socket.destroy();
-      const allowedOrigin = new URL(process.env.PUBLIC_ORIGIN).origin;
-      if (request.headers.origin !== allowedOrigin) return socket.destroy();
+      if (process.env.PUBLIC_ORIGIN) {
+        const allowedOrigin = new URL(process.env.PUBLIC_ORIGIN).origin;
+        if (request.headers.origin !== allowedOrigin) return socket.destroy();
+      }
       const cookies = Object.fromEntries((request.headers.cookie || '').split(';').map(part => {
         const index = part.indexOf('=');
         return index < 0 ? ['', ''] : [part.slice(0,index).trim(), part.slice(index+1)];
