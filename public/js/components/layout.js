@@ -87,7 +87,7 @@ export function layout() {
     balance.setAttribute('aria-label', 'Тестовый баланс');
     balance.textContent = 'Баланс…';
     actions.replaceChildren(balance, menu);
-    api('/demo/wallet').then(wallet => {
+    api('/demo/wallet/balance').then(wallet => {
       const amount = wallet.balance.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
       balance.textContent = amount + ' тест. USDT';
       balance.title = 'Тестовый баланс';

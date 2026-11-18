@@ -2,6 +2,7 @@
 
 - POST /api/auth/register, /api/auth/verify, /api/auth/login, /api/auth/refresh, /api/auth/logout
 - GET /api/me, PATCH /api/me/theme
+- GET /api/demo/wallet/balance — только текущий тестовый баланс для шапки
 - GET /api/categories, /api/categories/:slug, /api/categories/:slug/lots
 - GET /api/lots/:id, POST /api/lots
 - GET /api/users/:id, /api/users/:id/lots, /api/users/:id/reviews

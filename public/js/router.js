@@ -1,14 +1,11 @@
 import {api} from './api.js';
 import {layout} from './components/layout.js';
 import {table} from './components/table.js';
-import {authForm} from './auth.js';
-import {renderDemo, purchaseControl} from './demo.js';
-import {renderMyLots} from './my-lots.js';
 layout();
 const page=document.body.dataset.page,root=document.querySelector('#app');
 const link=(title,href)=>{const a=document.createElement('a');a.href=href;a.textContent=title;return a};
 async function render(){
-  if(page==='login'||page==='register')return authForm(page);
+  if(page==='login'||page==='register'){const {authForm}=await import('./auth.js');return authForm(page)}
   root.innerHTML='<h1>'+document.title.split(' — ')[0]+'</h1>';
   if(page==='index') {
     const categories=await api('/categories');
@@ -48,7 +45,7 @@ async function render(){
     if(!lots.length)result.querySelector('tbody td').textContent=input.value?'По вашему запросу предложений не найдено':'В этой категории пока нет предложений';root.append(result);
   }
   if(page==='lot') {
-    const lot=await api('/lots/'+location.pathname.split('/').at(-1));
+    const [lot,{purchaseControl}]=await Promise.all([api('/lots/'+location.pathname.split('/').at(-1)),import('./demo.js')]);
     const breadcrumb=document.createElement('div');breadcrumb.className='breadcrumbs';breadcrumb.append(link('Каталог','/'),document.createTextNode(' / '),link('Категория','/category/'+encodeURIComponent(lot.category_slug)));root.prepend(breadcrumb);
     root.querySelector('h1').textContent=lot.title;
     const layout=document.createElement('div');layout.className='lot-layout';
@@ -59,19 +56,18 @@ async function render(){
     const seller=document.createElement('div');seller.className='seller-line';const sellerLabel=document.createElement('span');sellerLabel.textContent='Продавец';seller.append(sellerLabel,link(lot.seller_name,'/users/'+lot.seller_id));details.append(price,availability,seller);if(lot.seller_reviews){const rating=document.createElement('p');rating.className='seller-rating';rating.textContent='Рейтинг '+lot.seller_rating+' / 5 · '+lot.seller_reviews+' отз.';details.append(rating)}purchaseControl(details,lot);layout.append(box,details);root.append(layout);
   }
   if(page==='user') {
-    const userId=location.pathname.split('/').at(-1);const [user,lots]=await Promise.all([api('/users/'+userId),api('/users/'+userId+'/lots')]);
+    const userId=location.pathname.split('/').at(-1);const [user,lots,reviews]=await Promise.all([api('/users/'+userId),api('/users/'+userId+'/lots'),api('/users/'+userId+'/reviews')]);
     root.innerHTML='<div class="profile-banner"></div><div class="profile-head"><div class="avatar"></div><div><h1></h1><span class="profile-id"></span></div></div><div class="profile-stats"><div class="card"><span class="stat-label">Дата регистрации</span><strong id="joined"></strong></div><div class="card"><span class="stat-label">Рейтинг продавца</span><strong id="rating"></strong><span class="stat-detail" id="reviews"></span></div></div><div class="section-title"><h2>Предложения</h2></div>';
     root.querySelector('.avatar').textContent=user.nickname[0].toUpperCase();root.querySelector('h1').textContent=user.nickname;root.querySelector('.profile-id').textContent='Пользователь № '+user.id;
     root.querySelector('#joined').textContent=new Date(user.created_at).toLocaleDateString('ru',{day:'numeric',month:'long',year:'numeric'});root.querySelector('#rating').textContent=user.reviews>0?user.rating+' / 5':'Пока нет оценок';root.querySelector('#reviews').textContent=user.reviews>0?'Отзывов: '+user.reviews:'Отзывы появятся после сделок';
     const result=table(['Описание','Категория','Наличие','Цена'],lots.map(l=>[link(l.title,'/lots/'+l.id),link(l.category,'/category/'+l.slug),l.quantity,l.price+' USDT']));if(!lots.length)result.querySelector('tbody td').textContent='У пользователя пока нет предложений';root.append(result);
-    const reviews=await api('/users/'+userId+'/reviews');
     const reviewsTitle=document.createElement('h2');reviewsTitle.className='reviews-title';reviewsTitle.textContent='Отзывы покупателей';root.append(reviewsTitle);
     if(!reviews.length){const empty=document.createElement('p');empty.className='muted';empty.textContent='Отзывов о завершённых покупках пока нет';root.append(empty)}
     for(const review of reviews){const card=document.createElement('article');card.className='card review-card';const head=document.createElement('div');head.className='review-head';const author=document.createElement('strong');author.textContent=review.buyer_name;const stars=document.createElement('span');stars.className='review-stars';stars.textContent='★'.repeat(review.rating)+'☆'.repeat(5-review.rating);stars.setAttribute('aria-label',review.rating+' из 5');const time=document.createElement('time');time.textContent=new Date(review.created_at).toLocaleDateString('ru-RU');head.append(author,stars,time);card.append(head);if(review.body){const body=document.createElement('p');body.textContent=review.body;card.append(body)}root.append(card)}
   }
-  if(page==='sales'&&location.pathname==='/my-lots'){await renderMyLots(root);return;}
+  if(page==='sales'&&location.pathname==='/my-lots'){const {renderMyLots}=await import('./my-lots.js');await renderMyLots(root);return;}
   if(page==='sales'){const categories=(await api('/categories')).filter(c=>c.parent_id);root.innerHTML='<h1>Новое предложение</h1><form class="card form-card"><label>Категория<select name="categoryId"></select></label><label>Название<input name="title" required minlength="5"></label><label>Описание<textarea name="description" required minlength="10"></textarea></label><label>Цена USDT<input name="price" required></label><label>Количество<input name="quantity" type="number" value="1" min="1"></label><button class="button">Опубликовать</button><p id="status"></p></form>';const select=root.querySelector('select');for(const c of categories){const option=document.createElement('option');option.value=c.id;option.textContent=c.name;select.append(option)}const fieldsBox=document.createElement('div');select.closest('label').after(fieldsBox);let fieldRequest=0;async function loadFields(){const request=++fieldRequest;const button=root.querySelector('button');button.disabled=true;fieldsBox.replaceChildren();const category=categories.find(c=>String(c.id)===select.value);if(!category)return;const data=await api('/categories/'+category.slug);if(request!==fieldRequest)return;button.disabled=false;for(const field of data.fields){const label=document.createElement('label');label.textContent=field.label;const input=document.createElement('input');input.name='field_'+field.key;input.type=field.type==='checkbox'?'checkbox':field.type==='number'?'number':'text';input.required=field.required;label.append(input);fieldsBox.append(label)}}select.onchange=()=>loadFields().catch(error=>{root.querySelector('#status').textContent=error.message});await loadFields();root.querySelector('form').onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));const fields={};for(const input of fieldsBox.querySelectorAll('input'))fields[input.name.slice(6)]=input.type==='checkbox'?input.checked:input.value;try{const result=await api('/lots',{method:'POST',body:JSON.stringify({...d,fields,categoryId:Number(d.categoryId),quantity:Number(d.quantity)})});location.href='/lots/'+result.id}catch(error){root.querySelector('#status').textContent=error.message}};}
   if(page==='admin'){const categories=await api('/admin/categories');root.append(table(['ID','Название','Slug','Статус'],categories.map(c=>[c.id,c.name,c.slug,c.status])));const form=document.createElement('form');form.className='card form-card';form.innerHTML='<h2>Добавить категорию</h2><label>Родитель<select name="parentId"><option value="">Раздел</option></select></label><label>Название<input name="name" required></label><label>Slug<input name="slug" required pattern="[a-z0-9-]+"></label><button class="button">Создать</button><p id="status"></p>';for(const category of categories.filter(c=>!c.parent_id)){const option=document.createElement('option');option.value=category.id;option.textContent=category.name;form.querySelector('select').append(option)}form.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(form));try{await api('/admin/categories',{method:'POST',body:JSON.stringify({name:d.name,slug:d.slug,parentId:d.parentId?Number(d.parentId):null})});location.reload()}catch(error){form.querySelector('#status').textContent=error.message}};root.append(form);}
-  if(page==='purchases'||page==='finance'||page==='messages'){await renderDemo(root,page);return;}
+  if(page==='purchases'||page==='finance'||page==='messages'){const {renderDemo}=await import('./demo.js');await renderDemo(root,page);return;}
 }
 render().catch(error=>{if(error.status===401){location.href='/login.html';return;}const box=document.createElement('p');box.className='error';box.textContent=error.message;root.append(box)});

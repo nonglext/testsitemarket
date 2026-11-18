@@ -10,6 +10,10 @@ const id=z.coerce.number().int().positive().safe();
 const key=z.uuid();
 const bad=message=>Object.assign(new Error(message),{status:400});
 
+demo.get('/wallet/balance',async(req,res)=>{
+  const wallet=await db.query('SELECT available::text FROM demo_wallets WHERE user_id=$1',[req.user.id]);
+  res.json({balance:wallet.rows[0]?.available||'0.000000'});
+});
 demo.get('/wallet',async(req,res)=>{
   const wallet=await db.query('SELECT available::text FROM demo_wallets WHERE user_id=$1',[req.user.id]);
   const history=await db.query('SELECT id,amount::text,kind,order_id,created_at FROM demo_wallet_entries WHERE user_id=$1 ORDER BY id DESC LIMIT 100',[req.user.id]);
