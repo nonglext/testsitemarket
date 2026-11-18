@@ -1,0 +1,1 @@
+export function modal(message){const dialog=document.createElement('dialog');dialog.textContent=message;const close=document.createElement('button');close.textContent='Закрыть';close.onclick=()=>dialog.remove();dialog.append(close);document.body.append(dialog);dialog.showModal()}

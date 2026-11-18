@@ -1,0 +1,3 @@
+:root[data-theme="light"]{--bg:#f4f4f4;--card:#fff;--border:#d8d8d8;--text:#202329;--muted:#60646c;--accent:#0755a6}
+:root[data-theme="gray"]{--bg:#2b2d31;--card:#35373c;--border:#4c5057;--text:#e8e9eb;--muted:#b7bac0;--accent:#86baff}
+:root[data-theme="black"]{--bg:#0d0d0d;--card:#161616;--border:#262626;--text:#eee;--muted:#aaa;--accent:#89bfff}
