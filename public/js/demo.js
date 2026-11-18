@@ -11,12 +11,19 @@ export function purchaseControl(container,lot){
   const note=notice();container.append(note);
   const form=document.createElement('form');form.className='purchase-form';
   const label=document.createElement('label');label.textContent='Количество';
-  const quantity=document.createElement('input');quantity.type='number';quantity.min='1';quantity.max=String(lot.quantity);quantity.value='1';quantity.required=true;label.append(quantity);
+  const quantity=document.createElement('input');quantity.type='number';quantity.min='1';quantity.max=String(lot.quantity);quantity.step='1';quantity.value='1';quantity.required=true;quantity.readOnly=lot.quantity===1;label.append(quantity);
   const buy=document.createElement('button');buy.className='button';buy.type='submit';buy.textContent=lot.quantity>0?'Купить за тестовый баланс':'Нет в наличии';buy.disabled=lot.quantity<1;
   const result=document.createElement('p');result.setAttribute('role','status');
-  form.append(label,buy,result);container.append(form);
+  form.append(label);
+  if(lot.quantity===1){const hint=document.createElement('p');hint.className='muted purchase-hint';hint.textContent='Доступна 1 штука';form.append(hint)}
+  form.append(buy,result);container.append(form);
   let key=crypto.randomUUID();
-  quantity.addEventListener('input',()=>{key=crypto.randomUUID()});
+  function validateQuantity(){
+    const value=Number(quantity.value);
+    quantity.setCustomValidity(!quantity.value||!Number.isInteger(value)||value<1?'Введите целое количество от 1':value>lot.quantity?'Доступно не больше '+lot.quantity+' шт.':'');
+  }
+  quantity.addEventListener('input',()=>{key=crypto.randomUUID();result.replaceChildren();validateQuantity()});
+  quantity.addEventListener('invalid',validateQuantity);
   form.addEventListener('submit',async event=>{event.preventDefault();buy.disabled=true;result.textContent='Оформляем покупку…';try{const order=await api('/demo/orders',{method:'POST',body:JSON.stringify({lotId:Number(lot.id),quantity:Number(quantity.value),requestKey:key})});location.href='/orders/'+order.id}catch(error){showError(result,error);if(error.message.includes('Недостаточно тестовых средств'))result.append(' ',textLink('Пополнить баланс','/wallet'));buy.disabled=false;}});
 }
 

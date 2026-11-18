@@ -60,3 +60,5 @@ button:disabled { opacity:.6; cursor:wait; }
 .chat-message p { margin:5px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; }
 .chat-meta { color:var(--muted); font-size:12px; }
 .order-chat textarea { min-height:80px; }
+.purchase-hint { font-size:12px; margin:-10px 0 14px; }
+.purchase-form input[readonly] { color:var(--muted); background:var(--soft); }
