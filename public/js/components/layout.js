@@ -4,7 +4,7 @@ import {setTheme} from '../theme.js';
 export function layout() {
   const header = document.querySelector('#header');
   header.innerHTML = `<header class="topbar"><div class="shell">
-    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16l-1 11H5L4 9Z"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/></svg></span>Market Yard</a>
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16l-1 11H5L4 9Z"/><path d="M8 9V7a4 4 0 0 1 8 0v2"/></svg></span>Market Yard</a><span class="test-mode">Тестовый режим</span>
     <nav aria-label="Основная навигация"><a href="/">Каталог</a><a href="/sales">Продажи</a><a href="/orders">Покупки</a><a href="/messages">Сообщения</a><a href="/wallet">Финансы</a></nav>
     <div class="header-actions"><span class="account-loading" aria-live="polite">Загрузка…</span></div>
   </div></header>`;

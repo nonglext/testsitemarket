@@ -36,7 +36,7 @@ export async function renderDemo(root,page){
   const seller=location.pathname.replace(/\/$/,'')==='/sales';
   const heading=document.createElement('div');heading.className='section-title';
   const title=document.createElement('h1');title.textContent=seller?'Мои продажи':'Мои покупки';heading.append(title);
-  if(seller){const create=textLink('Создать предложение','/sell');create.className='button';heading.append(create)}
+  if(seller){const links=document.createElement('div');links.className='sales-actions';const manage=textLink('Мои предложения','/my-lots');manage.className='button button-secondary';const create=textLink('Создать предложение','/sell');create.className='button';links.append(manage,create);heading.append(links)}
   root.append(heading,notice());
   const orders=await api('/demo/orders?role='+(seller?'seller':'buyer'));
   const result=table(['Дата','Заказ','Описание',seller?'Покупатель':'Продавец','Статус','Сумма'],orders.map(order=>[date(order.created_at),textLink('#'+order.id,'/orders/'+order.id),textLink(order.lot_title,'/orders/'+order.id),order.counterparty,status[order.status],order.total+' тест. USDT']));
@@ -101,7 +101,8 @@ async function chat(root,orderId,viewerId,refreshOrder){
   const title=document.createElement('h2');title.textContent='Переписка по заказу';
   const messages=document.createElement('div');messages.className='chat-messages';messages.setAttribute('aria-live','polite');
   const form=document.createElement('form');const input=document.createElement('textarea');input.required=true;input.maxLength=4000;input.placeholder='Напишите сообщение';input.setAttribute('aria-label','Сообщение');
-  const button=document.createElement('button');button.className='button';button.textContent='Отправить';const result=document.createElement('p');result.setAttribute('role','status');form.append(input,button,result);section.append(title,messages,form);root.append(section);
+  const hint=document.createElement('p');hint.className='form-hint';hint.textContent='Enter — отправить, Shift + Enter — новая строка';
+  const button=document.createElement('button');button.className='button';button.textContent='Отправить';const result=document.createElement('p');result.setAttribute('role','status');form.append(input,hint,button,result);section.append(title,messages,form);root.append(section);
   input.addEventListener('keydown',event=>{
     if(event.key==='Enter' && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.isComposing && event.keyCode!==229){
       event.preventDefault();

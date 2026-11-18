@@ -23,6 +23,7 @@ export function setupRealtime(server) {
       if (!result.rowCount || socket.destroyed) return socket.destroy();
       sockets.handleUpgrade(request, socket, head, ws => {
         ws.userId = result.rows[0].user_id;
+        ws.sessionId = String(claims.sid);
         ws.isAlive = true;
         ws.on('pong', () => { ws.isAlive = true; });
         ws.on('error', () => {});
@@ -42,6 +43,13 @@ export function setupRealtime(server) {
     }
   }, 30000);
   server.on('close', () => clearInterval(heartbeat));
+}
+
+export function closeSessionSockets(sessionId) {
+  if (!sockets) return;
+  for (const ws of sockets.clients) {
+    if (ws.sessionId === String(sessionId)) ws.close(1008, 'Session revoked');
+  }
 }
 
 export async function notifyOrder(orderId, type) {

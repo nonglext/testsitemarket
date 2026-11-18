@@ -4,10 +4,11 @@ import jwt from 'jsonwebtoken';
 import {randomBytes,createHash} from 'node:crypto';
 import {z} from 'zod';
 import {db,transaction} from './db.js';
+import {closeSessionSockets} from './realtime.js';
 export const auth=Router();
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const random=()=>randomBytes(32).toString('hex');
-const credentials=z.object({email:z.email().transform(v=>v.toLowerCase()),password:z.string().min(10)});
+const credentials=z.object({email:z.email().max(254).transform(v=>v.toLowerCase()),password:z.string().min(10).max(128)});
 const cookie={httpOnly:true,sameSite:'lax',secure:process.env.PUBLIC_ORIGIN?.startsWith('https://'),path:'/'};
 export async function current(req,res,next){
   let claims;
@@ -43,4 +44,10 @@ auth.post('/login',async(req,res,next)=>{try{
   res.cookie('refresh',refresh,{...cookie,maxAge:2592000000});res.json({id:user.id});
 }catch(error){next(error);}});
 auth.post('/refresh',async(req,res)=>{const refresh=random();const result=await db.query("UPDATE sessions SET refresh_hash=$2 WHERE refresh_hash=$1 AND revoked_at IS NULL AND expires_at>now() AND EXISTS (SELECT 1 FROM users WHERE users.id=sessions.user_id AND users.status='active') RETURNING id",[hash(req.cookies.refresh||''),hash(refresh)]);if(!result.rowCount)return res.sendStatus(401);res.cookie('access',jwt.sign({sid:result.rows[0].id},process.env.JWT_SECRET,{expiresIn:'15m'}),{...cookie,maxAge:900000});res.cookie('refresh',refresh,{...cookie,maxAge:2592000000});res.json({ok:true});});
-auth.post('/logout',async(req,res)=>{await db.query('UPDATE sessions SET revoked_at=now() WHERE refresh_hash=$1',[hash(req.cookies.refresh||'')]);res.clearCookie('access');res.clearCookie('refresh');res.json({ok:true});});
+auth.post('/logout',async(req,res)=>{
+  const result=await db.query('UPDATE sessions SET revoked_at=now() WHERE refresh_hash=$1 AND revoked_at IS NULL RETURNING id',[hash(req.cookies.refresh||'')]);
+  if(result.rowCount)closeSessionSockets(result.rows[0].id);
+  res.clearCookie('access',cookie);
+  res.clearCookie('refresh',cookie);
+  res.json({ok:true});
+});

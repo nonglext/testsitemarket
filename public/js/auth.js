@@ -6,7 +6,8 @@ export async function authForm(mode) {
   root.innerHTML = `<h1>${isLogin ? 'Вход' : 'Регистрация'}</h1><form class="card form-card">
     ${isLogin ? '' : '<label>Ник<input name="nickname" required minlength="3" autocomplete="username"></label>'}
     <label>Email<input name="email" type="email" required autocomplete="email"></label>
-    <label>Пароль<input name="password" type="password" required minlength="10" autocomplete="${isLogin ? 'current-password' : 'new-password'}"></label>
+    <label>Пароль<input name="password" type="password" required minlength="10" maxlength="128" autocomplete="${isLogin ? 'current-password' : 'new-password'}"></label>
+    ${isLogin ? '' : '<p class="form-hint">Не менее 10 символов. Ник может содержать буквы, цифры, дефис и подчёркивание.</p>'}
     <button class="button">${isLogin ? 'Войти' : 'Создать аккаунт'}</button><p id="status" role="status"></p>
     <div class="auth-switch">${isLogin ? 'Нет аккаунта? <a href="/register.html">Зарегистрироваться</a>' : 'Уже есть аккаунт? <a href="/login.html">Войти</a>'}</div>
   </form>`;

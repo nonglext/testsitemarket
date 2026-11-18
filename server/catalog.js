@@ -5,9 +5,36 @@ import {current} from './auth.js';
 export const catalog=Router();
 const id=z.coerce.number().int().positive();
 const admin=(req,res,next)=>req.user.roles.includes('admin')?next():res.sendStatus(403);
+catalog.get('/me/lots',current,async(req,res)=>{
+  const result=await db.query("SELECT l.id,l.title,l.description,l.price::text,l.quantity,l.status,c.name category FROM lots l JOIN categories c ON c.id=l.category_id WHERE l.seller_id=$1 AND l.status IN ('active','hidden') ORDER BY l.id DESC",[req.user.id]);
+  res.json(result.rows);
+});
+catalog.patch('/me/lots/:id',current,async(req,res)=>{
+  const data=z.object({
+    title:z.string().trim().min(5).max(160),
+    description:z.string().trim().min(10).max(10000),
+    price:z.string().regex(/^\d{1,12}(\.\d{1,6})?$/).refine(value=>Number(value)>0),
+    quantity:z.number().int().min(0).max(100000),
+    status:z.enum(['active','hidden'])
+  }).strict().parse(req.body);
+  const result=await db.query("UPDATE lots SET title=$3,description=$4,price=$5,quantity=$6,status=$7,version=version+1 WHERE id=$1 AND seller_id=$2 AND status IN ('active','hidden') RETURNING id",[id.parse(req.params.id),req.user.id,data.title,data.description,data.price,data.quantity,data.status]);
+  if(!result.rowCount)return res.status(404).json({error:'Предложение не найдено'});
+  res.json(result.rows[0]);
+});
+catalog.delete('/me/lots/:id',current,async(req,res)=>{
+  const result=await db.query("UPDATE lots SET status='deleted',version=version+1 WHERE id=$1 AND seller_id=$2 AND status IN ('active','hidden') RETURNING id",[id.parse(req.params.id),req.user.id]);
+  if(!result.rowCount)return res.status(404).json({error:'Предложение не найдено'});
+  res.json({ok:true});
+});
 catalog.get('/categories',async(req,res)=>res.json((await db.query("SELECT id,parent_id,name,slug,icon FROM categories WHERE status='active' ORDER BY position,id")).rows));
 catalog.get('/categories/:slug',async(req,res)=>{const r=await db.query("SELECT c.*,p.settings,p.fee_bps FROM categories c LEFT JOIN LATERAL(SELECT settings,fee_bps FROM category_policies WHERE category_id=c.id ORDER BY version DESC LIMIT 1)p ON true WHERE c.slug=$1 AND c.status='active'",[req.params.slug]);if(!r.rowCount)return res.sendStatus(404);const fields=await db.query('SELECT id,key,type,label,hint,required,filterable FROM category_fields WHERE category_id=$1 AND archived_at IS NULL ORDER BY position,id',[r.rows[0].id]);res.json({...r.rows[0],fields:fields.rows});});
-catalog.get('/categories/:slug/lots',async(req,res)=>{const result=await db.query("SELECT l.id,l.title,l.description,l.price::text,l.quantity,l.delivery_mode,u.id seller_id,u.nickname,COALESCE(round(avg(rv.rating)::numeric,2),0) rating FROM lots l JOIN categories c ON c.id=l.category_id JOIN users u ON u.id=l.seller_id LEFT JOIN reviews rv ON rv.order_id IN (SELECT id FROM orders WHERE seller_id=u.id) WHERE c.slug=$1 AND l.status='active' AND ($2::text IS NULL OR l.title ILIKE '%'||$2||'%') GROUP BY l.id,u.id ORDER BY l.bumped_at DESC NULLS LAST,l.id DESC LIMIT 100",[req.params.slug,req.query.q||null]);res.json(result.rows);});
+catalog.get('/categories/:slug/lots',async(req,res)=>{
+  const sort=z.enum(['recent','price_asc','price_desc','quantity']).default('recent').parse(req.query.sort);
+  const query=z.string().trim().max(120).optional().parse(req.query.q);
+  const ordering={recent:'l.bumped_at DESC NULLS LAST,l.id DESC',price_asc:'l.price ASC,l.id DESC',price_desc:'l.price DESC,l.id DESC',quantity:'l.quantity DESC,l.id DESC'}[sort];
+  const result=await db.query(`SELECT l.id,l.title,l.description,l.price::text,l.quantity,l.delivery_mode,u.id seller_id,u.nickname,COALESCE(round(avg(rv.rating)::numeric,2),0) rating FROM lots l JOIN categories c ON c.id=l.category_id JOIN users u ON u.id=l.seller_id LEFT JOIN reviews rv ON rv.order_id IN (SELECT id FROM orders WHERE seller_id=u.id) WHERE c.slug=$1 AND c.status='active' AND l.status='active' AND ($2::text IS NULL OR l.title ILIKE '%'||$2||'%') GROUP BY l.id,u.id ORDER BY ${ordering} LIMIT 100`,[req.params.slug,query||null]);
+  res.json(result.rows);
+});
 catalog.get('/lots/:id',async(req,res)=>{const r=await db.query("SELECT l.*,l.price::text,c.slug category_slug,u.nickname seller_name FROM lots l JOIN categories c ON c.id=l.category_id JOIN users u ON u.id=l.seller_id WHERE l.id=$1 AND l.status='active'",[id.parse(req.params.id)]);if(!r.rowCount)return res.sendStatus(404);res.json(r.rows[0]);});
 catalog.get('/users/:id',async(req,res)=>{const r=await db.query("SELECT u.id,u.nickname,u.created_at,u.last_seen_at,u.seller_since,p.theme,COALESCE(round(avg(rv.rating)::numeric,2),0) rating,count(rv.id) reviews FROM users u JOIN profiles p ON p.user_id=u.id LEFT JOIN orders o ON o.seller_id=u.id LEFT JOIN reviews rv ON rv.order_id=o.id WHERE u.id=$1 GROUP BY u.id,p.theme",[id.parse(req.params.id)]);if(!r.rowCount)return res.sendStatus(404);res.json(r.rows[0]);});
 catalog.get('/users/:id/lots',async(req,res)=>res.json((await db.query("SELECT l.id,l.title,l.price::text,l.quantity,c.name category,c.slug FROM lots l JOIN categories c ON c.id=l.category_id WHERE l.seller_id=$1 AND l.status='active' ORDER BY c.position,l.id DESC",[id.parse(req.params.id)])).rows));
