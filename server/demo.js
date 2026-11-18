@@ -2,6 +2,7 @@ import {Router} from 'express';
 import {z} from 'zod';
 import {db,transaction} from './db.js';
 import {current} from './auth.js';
+import {notifyOrder} from './realtime.js';
 
 export const demo=Router();
 demo.use(current);
@@ -72,11 +73,13 @@ demo.post('/orders/:id/messages',async(req,res)=>{
   const result=await db.query("INSERT INTO demo_order_messages(order_id,sender_id,body,client_key) SELECT id,$2,$3,$4 FROM demo_orders WHERE id=$1 AND (buyer_id=$2 OR seller_id=$2) ON CONFLICT(order_id,sender_id,client_key) DO UPDATE SET client_key=excluded.client_key RETURNING id,body",[orderId,req.user.id,data.body,data.clientKey]);
   if(!result.rowCount)return res.status(404).json({error:'Заказ не найден'});
   if(result.rows[0].body!==data.body)throw bad('Ключ сообщения уже использован');
+  await notifyOrder(orderId,'message');
   res.status(201).json({id:result.rows[0].id});
 });
 demo.post('/orders/:id/deliver',async(req,res)=>{
   const result=await db.query("UPDATE demo_orders SET status='delivered',delivered_at=now() WHERE id=$1 AND seller_id=$2 AND status='paid' RETURNING id",[id.parse(req.params.id),req.user.id]);
   if(!result.rowCount)throw bad('Передача недоступна для этого заказа');
+  await notifyOrder(req.params.id,'order');
   res.json({ok:true});
 });
 demo.post('/orders/:id/confirm',async(req,res)=>{
@@ -85,11 +88,12 @@ demo.post('/orders/:id/confirm',async(req,res)=>{
     if(!result.rowCount)throw bad('Заказ не найден');
     const order=result.rows[0];
     if(order.status==='completed')return;
-    if(order.status!=='delivered')throw bad('Продавец ещё не отметил передачу');
+    if(!['paid','delivered'].includes(order.status))throw bad('Этот заказ нельзя подтвердить');
     await c.query('INSERT INTO demo_wallets(user_id) VALUES($1) ON CONFLICT DO NOTHING',[order.seller_id]);
     await c.query('UPDATE demo_wallets SET available=available+$2::numeric WHERE user_id=$1',[order.seller_id,order.total]);
     await c.query("INSERT INTO demo_wallet_entries(user_id,amount,kind,order_id) VALUES($1,$2,'sale',$3)",[order.seller_id,order.total,order.id]);
     await c.query("UPDATE demo_orders SET status='completed',completed_at=now() WHERE id=$1",[order.id]);
   });
+  await notifyOrder(req.params.id,'order');
   res.json({ok:true});
 });

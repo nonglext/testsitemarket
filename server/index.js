@@ -1,7 +1,6 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import {rateLimit} from 'express-rate-limit';
-import {WebSocketServer} from 'ws';
 import {createServer} from 'node:http';
 import {join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -9,6 +8,7 @@ import {db} from './db.js';
 import {auth,current} from './auth.js';
 import {catalog} from './catalog.js';
 import {demo} from './demo.js';
+import {setupRealtime} from './realtime.js';
 const app=express();
 if (process.env.RENDER === 'true') app.set('trust proxy', 1);
 const root=join(dirname(fileURLToPath(import.meta.url)),'..','public');
@@ -26,6 +26,5 @@ for(const [route,page] of [['/users/:id','user'],['/category/:slug','category'],
 app.use('/api',(req,res)=>res.status(404).json({error:'Маршрут не найден'}));
 app.use((error,req,res,next)=>{console.error(error);res.status(error.status|| (error.code==='23505'?409:error.name==='ZodError'?400:500)).json({error:error.code==='23505'?'Уже существует':error.name==='ZodError'?'Проверьте поля':error.status && error.status<500?error.message:'Ошибка сервера'});});
 const server=createServer(app);
-const sockets=new WebSocketServer({server,path:'/ws'});
-sockets.on('connection',socket=>socket.send(JSON.stringify({type:'connected'})));
+setupRealtime(server);
 server.listen(process.env.PORT||3000,()=>console.log('Listening on '+(process.env.PORT||3000)));

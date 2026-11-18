@@ -44,3 +44,5 @@ tbody tr:last-child td { border-bottom:0; }
 .guest-theme { font-size:0; }
 
 .account-retry { border:0; background:none; color:var(--accent); }
+.header-balance { font-size:12px; font-weight:600; padding:6px 8px; border-radius:4px; background:var(--soft); white-space:nowrap; }
+@media(max-width:500px) { .header-balance { max-width:110px; overflow:hidden; text-overflow:ellipsis; } .account-name { max-width:75px; } }

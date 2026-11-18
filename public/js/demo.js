@@ -66,34 +66,76 @@ async function orderDetails(root,id){
   const back=textLink(order.buyer_id===order.viewer_id?'Мои покупки':'Мои продажи',order.buyer_id===order.viewer_id?'/orders':'/sales');back.className='breadcrumbs';root.append(back);
   const heading=document.createElement('h1');heading.textContent='Заказ №'+order.id;root.append(heading,notice());
   const box=document.createElement('section');box.className='card order-card';
-  const title=document.createElement('h2');title.textContent=order.lot_title;box.append(title);
-  const list=document.createElement('dl');list.className='order-details';
-  for(const [label,value] of [['Статус',status[order.status]],['Покупатель',order.buyer_name],['Продавец',order.seller_name],['Количество',String(order.quantity)],['Сумма',order.total+' тест. USDT'],['Дата',date(order.created_at)]]){const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;list.append(dt,dd)}box.append(list);
-  const message=document.createElement('p');message.className='muted';
-  if(order.status==='paid')message.textContent='Продавец передаёт товар и отмечает передачу на этой странице.';
-  if(order.status==='delivered')message.textContent='Покупатель может подтвердить получение товара.';
-  if(order.status==='completed')message.textContent='Тестовая сделка завершена.';
-  box.append(message);
-  const action=order.status==='paid'&&order.viewer_id===order.seller_id?['Отметить передачу','deliver']:order.status==='delivered'&&order.viewer_id===order.buyer_id?['Подтвердить получение','confirm']:null;
-  if(action){const button=document.createElement('button');button.className='button';button.textContent=action[0];const result=document.createElement('p');result.setAttribute('role','status');button.onclick=async()=>{button.disabled=true;try{await api('/demo/orders/'+id+'/'+action[1],{method:'POST'});location.reload()}catch(error){showError(result,error);button.disabled=false}};box.append(button,result)}
-  root.append(box);
-  await chat(root,id,order.viewer_id);
+  const columns=document.createElement('div');columns.className='order-layout';columns.append(box);root.append(columns);
+  function drawOrder(current){
+    box.replaceChildren();
+    const title=document.createElement('h2');title.textContent=current.lot_title;box.append(title);
+    const list=document.createElement('dl');list.className='order-details';
+    for(const [label,value] of [['Статус',status[current.status]],['Покупатель',current.buyer_name],['Продавец',current.seller_name],['Количество',String(current.quantity)],['Сумма',current.total+' тест. USDT'],['Дата',date(current.created_at)]]){const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;list.append(dt,dd)}box.append(list);
+    const message=document.createElement('p');message.className='muted';
+    if(current.status==='paid')message.textContent='Тестовые средства удерживаются до подтверждения покупателем. Обсудите передачу в переписке.';
+    if(current.status==='delivered')message.textContent='Продавец отметил передачу. После получения покупатель может подтвердить заказ.';
+    if(current.status==='completed')message.textContent='Заказ подтверждён. Тестовые средства зачислены продавцу.';
+    box.append(message);
+    const action=current.status==='paid'&&current.viewer_id===current.seller_id?['Отметить передачу','deliver']:['paid','delivered'].includes(current.status)&&current.viewer_id===current.buyer_id?['Подтвердить получение','confirm']:null;
+    if(action){const button=document.createElement('button');button.className='button';button.textContent=action[0];const result=document.createElement('p');result.setAttribute('role','status');button.onclick=async()=>{button.disabled=true;try{await api('/demo/orders/'+id+'/'+action[1],{method:'POST'});await refreshOrder()}catch(error){showError(result,error);button.disabled=false}};box.append(button,result)}
+  }
+  let version=0;
+  async function refreshOrder(){const current=++version;const fresh=await api('/demo/orders/'+id);if(current===version)drawOrder(fresh)}
+  drawOrder(order);
+  await chat(columns,id,order.viewer_id,refreshOrder);
 }
 
 async function conversations(root){
   const title=document.createElement('h1');title.textContent='Сообщения';root.append(title,notice());
   const [purchases,sales]=await Promise.all([api('/demo/orders?role=buyer'),api('/demo/orders?role=seller')]);
   const orders=[...purchases,...sales].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
-  const result=table(['Заказ','Собеседник','Статус'],orders.map(order=>[textLink('#'+order.id+' · '+order.lot_title,'/orders/'+order.id),order.counterparty,status[order.status]]));
-  if(!orders.length)result.querySelector('tbody td').textContent='Сообщения появятся после создания заказа';root.append(result);
+  const layout=document.createElement('div');layout.className='inbox-layout card';
+  const list=document.createElement('div');list.className='inbox-list';
+  if(!orders.length){const empty=document.createElement('p');empty.className='muted';empty.textContent='Сообщения появятся после создания заказа';list.append(empty)}
+  for(const order of orders){const item=textLink('', '/orders/'+order.id);item.className='inbox-item';const avatar=document.createElement('span');avatar.className='account-avatar';avatar.textContent=order.counterparty.slice(0,1).toUpperCase();const content=document.createElement('span');content.className='inbox-content';const name=document.createElement('strong');name.textContent=order.counterparty;const detail=document.createElement('span');detail.textContent='Заказ №'+order.id+' · '+order.lot_title;content.append(name,detail);item.append(avatar,content);list.append(item)}
+  const prompt=document.createElement('div');prompt.className='inbox-prompt';prompt.textContent=orders.length?'Выберите заказ, чтобы открыть переписку':'Пока нет переписок';layout.append(list,prompt);root.append(layout);
 }
-async function chat(root,orderId,viewerId){
+async function chat(root,orderId,viewerId,refreshOrder){
   const section=document.createElement('section');section.className='card order-chat';
   const title=document.createElement('h2');title.textContent='Переписка по заказу';
   const messages=document.createElement('div');messages.className='chat-messages';messages.setAttribute('aria-live','polite');
   const form=document.createElement('form');const input=document.createElement('textarea');input.required=true;input.maxLength=4000;input.placeholder='Напишите сообщение';input.setAttribute('aria-label','Сообщение');
   const button=document.createElement('button');button.className='button';button.textContent='Отправить';const result=document.createElement('p');result.setAttribute('role','status');form.append(input,button,result);section.append(title,messages,form);root.append(section);
-  let last='';async function refresh(){const rows=await api('/demo/orders/'+orderId+'/messages');const signature=JSON.stringify(rows);if(signature===last)return;last=signature;messages.replaceChildren();if(!rows.length){const empty=document.createElement('p');empty.className='muted';empty.textContent='Сообщений пока нет';messages.append(empty)}for(const row of rows){const item=document.createElement('div');item.className='chat-message';const meta=document.createElement('div');meta.className='chat-meta';meta.textContent=(row.sender_id===viewerId?'Вы':row.nickname)+' · '+date(row.created_at);const body=document.createElement('p');body.textContent=row.body;item.append(meta,body);messages.append(item)}}
-  let key=crypto.randomUUID();input.addEventListener('input',()=>{key=crypto.randomUUID()});form.onsubmit=async event=>{event.preventDefault();button.disabled=true;result.textContent='';try{await api('/demo/orders/'+orderId+'/messages',{method:'POST',body:JSON.stringify({body:input.value,clientKey:key})});input.value='';key=crypto.randomUUID();await refresh()}catch(error){showError(result,error)}finally{button.disabled=false}};
-  await refresh();setInterval(()=>refresh().catch(()=>{}),10000);
+  let last='';let inFlight=null;let refreshAgain=false;
+  async function refresh(){
+    if(inFlight){refreshAgain=true;return inFlight}
+    inFlight=(async()=>{
+      do {
+        refreshAgain=false;
+        const rows=await api('/demo/orders/'+orderId+'/messages');
+        const signature=JSON.stringify(rows);if(signature===last)continue;
+        const nearBottom=messages.scrollHeight-messages.scrollTop-messages.clientHeight<80;
+        last=signature;messages.replaceChildren();
+        if(!rows.length){const empty=document.createElement('p');empty.className='muted';empty.textContent='Сообщений пока нет';messages.append(empty)}
+        for(const row of rows){const item=document.createElement('div');item.className='chat-message';const meta=document.createElement('div');meta.className='chat-meta';meta.textContent=(row.sender_id===viewerId?'Вы':row.nickname)+' · '+date(row.created_at);const body=document.createElement('p');body.textContent=row.body;item.append(meta,body);messages.append(item)}
+        if(nearBottom)messages.scrollTop=messages.scrollHeight;
+      } while(refreshAgain);
+    })();
+    try{return await inFlight}finally{inFlight=null}
+  }
+  let key=crypto.randomUUID();input.addEventListener('input',()=>{key=crypto.randomUUID()});
+  form.onsubmit=async event=>{event.preventDefault();button.disabled=true;input.readOnly=true;result.textContent='';try{await api('/demo/orders/'+orderId+'/messages',{method:'POST',body:JSON.stringify({body:input.value,clientKey:key})});input.value='';key=crypto.randomUUID();refresh().catch(()=>{})}catch(error){showError(result,error)}finally{button.disabled=false;input.readOnly=false}};
+  let socket;let retryDelay=1000;let stopped=false;let retryTimer;
+  async function connect(){
+    if(stopped)return;
+    try{
+      await api('/me');
+      if(stopped)return;
+      socket=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
+      socket.onopen=()=>{retryDelay=1000;refresh().catch(()=>{});refreshOrder().catch(()=>{})};
+      socket.onmessage=event=>{try{const eventData=JSON.parse(event.data);if(eventData.orderId!==String(orderId))return;if(eventData.type==='message')refresh().catch(()=>{});if(eventData.type==='order')refreshOrder().catch(()=>{})}catch{}};
+      socket.onerror=()=>socket.close();
+      socket.onclose=()=>{if(stopped)return;retryTimer=setTimeout(connect,retryDelay);retryDelay=Math.min(retryDelay*2,30000)};
+    }catch{if(!stopped){retryTimer=setTimeout(connect,retryDelay);retryDelay=Math.min(retryDelay*2,30000)}}
+  }
+  window.addEventListener('pagehide',()=>{stopped=true;clearTimeout(retryTimer);if(socket)socket.close()},{once:true});
+  window.addEventListener('pageshow',event=>{if(event.persisted){stopped=false;connect()}});
+  await refresh();connect();
+  setInterval(()=>{if(!socket||socket.readyState!==WebSocket.OPEN){refresh().catch(()=>{});refreshOrder().catch(()=>{})}},10000);
 }

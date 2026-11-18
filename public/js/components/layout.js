@@ -81,7 +81,17 @@ export function layout() {
     });
     panel.append(themeSelect(), logout);
     menu.append(summary, panel);
-    actions.replaceChildren(menu);
+    const balance = document.createElement('a');
+    balance.href = '/wallet';
+    balance.className = 'header-balance';
+    balance.setAttribute('aria-label', 'Тестовый баланс');
+    balance.textContent = 'Баланс…';
+    actions.replaceChildren(balance, menu);
+    api('/demo/wallet').then(wallet => {
+      const amount = wallet.balance.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+      balance.textContent = amount + ' тест. USDT';
+      balance.title = 'Тестовый баланс';
+    }).catch(() => { balance.textContent = 'Финансы'; });
     document.addEventListener('click', event => { if (!menu.contains(event.target)) menu.open = false; });
     document.addEventListener('keydown', event => { if (event.key === 'Escape' && menu.open) { menu.open = false; summary.focus(); } });
   }).catch(error => {
