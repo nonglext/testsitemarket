@@ -81,3 +81,15 @@ button:disabled { opacity:.6; cursor:wait; }
 @media(max-width:550px) { .edit-lot summary { align-items:flex-start; flex-direction:column; } .edit-lot summary span { text-align:left; } }
 .catalog-sort { width:auto; min-width:175px; margin:0; }
 @media(max-width:650px) { .catalog-sort { flex:1; } }
+.reviews-title { margin:30px 0 14px; }
+.review-card { margin-bottom:12px; padding:18px 20px; }
+.review-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; }
+.review-head time { color:var(--muted); font-size:12px; margin-left:auto; }
+.review-stars { color:var(--accent); letter-spacing:2px; }
+.review-card p { white-space:pre-wrap; overflow-wrap:anywhere; margin:12px 0 0; }
+.review-form-title { border-top:1px solid var(--border); padding-top:20px; margin:22px 0 12px; }
+.order-review-form { display:grid; gap:12px; }
+.order-review-form textarea { min-height:88px; }
+.order-review-form .button { justify-self:start; }
+.seller-summary { display:flex; flex-direction:column; gap:3px; }
+.seller-summary small,.seller-rating { color:var(--muted); font-size:12px; }

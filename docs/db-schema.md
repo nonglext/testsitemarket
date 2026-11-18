@@ -460,3 +460,17 @@ payload jsonb not null
 created_at timestamptz not null default now()
 delivered_at timestamptz
 ```
+
+## Отзывы о демо-заказах — `demo_reviews`
+
+Миграция `0004_demo_reviews`. Один завершённый демо-заказ даёт покупателю право на один отзыв о продавце. Профиль и каталог рассчитывают рейтинг по этой таблице.
+
+```sql
+id bigint generated always as identity primary key
+order_id bigint not null unique references demo_orders(id)
+seller_id bigint not null references users(id)
+buyer_id bigint not null references users(id)
+rating integer not null check(rating between 1 and 5)
+body text not null default '' check(char_length(body) <= 2000)
+created_at timestamptz not null default now()
+```

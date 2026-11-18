@@ -1,4 +1,5 @@
 import {api} from './api.js';
 const system=matchMedia('(prefers-color-scheme:dark)').matches?'gray':'light';
-export function setTheme(value,persist=true){document.documentElement.dataset.theme=value;localStorage.setItem('theme',value);if(persist)api('/me/theme',{method:'PATCH',body:JSON.stringify({theme:value})}).catch(()=>{});}
-setTheme(localStorage.getItem('theme')||system,false);
+export function setTheme(value,persist=true){if(!['light','gray','black'].includes(value))return;document.documentElement.dataset.theme=value;try{localStorage.setItem('theme',value)}catch{}if(persist)api('/me/theme',{method:'PATCH',body:JSON.stringify({theme:value})}).catch(()=>{});}
+let savedTheme;try{savedTheme=localStorage.getItem('theme')}catch{}
+setTheme(['light','gray','black'].includes(savedTheme)?savedTheme:system,false);

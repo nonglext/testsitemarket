@@ -53,11 +53,11 @@ demo.post('/orders',async(req,res)=>{
 demo.get('/orders',async(req,res)=>{
   const role=z.enum(['buyer','seller']).default('buyer').parse(req.query.role);
   const column=role==='buyer'?'buyer_id':'seller_id';
-  const result=await db.query(`SELECT o.*,o.total::text,u.nickname AS counterparty FROM demo_orders o JOIN users u ON u.id=o.${role==='buyer'?'seller_id':'buyer_id'} WHERE o.${column}=$1 ORDER BY o.id DESC LIMIT 100`,[req.user.id]);
+  const result=await db.query(`SELECT o.id,o.created_at,o.lot_title,o.status,o.total::text,u.nickname AS counterparty FROM demo_orders o JOIN users u ON u.id=o.${role==='buyer'?'seller_id':'buyer_id'} WHERE o.${column}=$1 ORDER BY o.id DESC LIMIT 100`,[req.user.id]);
   res.json(result.rows);
 });
 demo.get('/orders/:id',async(req,res)=>{
-  const result=await db.query("SELECT o.*,o.unit_price::text,o.total::text,b.nickname buyer_name,s.nickname seller_name FROM demo_orders o JOIN users b ON b.id=o.buyer_id JOIN users s ON s.id=o.seller_id WHERE o.id=$1 AND (o.buyer_id=$2 OR o.seller_id=$2)",[id.parse(req.params.id),req.user.id]);
+  const result=await db.query("SELECT o.id,o.buyer_id,o.seller_id,o.lot_id,o.lot_title,o.quantity,o.unit_price::text,o.total::text,o.status,o.created_at,o.delivered_at,o.completed_at,b.nickname buyer_name,s.nickname seller_name,r.rating review_rating,r.body review_body FROM demo_orders o JOIN users b ON b.id=o.buyer_id JOIN users s ON s.id=o.seller_id LEFT JOIN demo_reviews r ON r.order_id=o.id WHERE o.id=$1 AND (o.buyer_id=$2 OR o.seller_id=$2)",[id.parse(req.params.id),req.user.id]);
   if(!result.rowCount)return res.status(404).json({error:'Заказ не найден'});
   res.json({...result.rows[0],viewer_id:req.user.id});
 });
@@ -96,4 +96,15 @@ demo.post('/orders/:id/confirm',async(req,res)=>{
   });
   await notifyOrder(req.params.id,'order');
   res.json({ok:true});
+});
+demo.post('/orders/:id/review',async(req,res)=>{
+  const orderId=id.parse(req.params.id);
+  const data=z.object({rating:z.number().int().min(1).max(5),body:z.string().trim().max(2000).default('')}).strict().parse(req.body);
+  const result=await db.query("INSERT INTO demo_reviews(order_id,seller_id,buyer_id,rating,body) SELECT id,seller_id,buyer_id,$3,$4 FROM demo_orders WHERE id=$1 AND buyer_id=$2 AND status='completed' ON CONFLICT(order_id) DO NOTHING RETURNING id",[orderId,req.user.id,data.rating,data.body]);
+  if(!result.rowCount){
+    const existing=await db.query('SELECT 1 FROM demo_reviews WHERE order_id=$1 AND buyer_id=$2',[orderId,req.user.id]);
+    if(existing.rowCount)return res.status(409).json({error:'Вы уже оставили отзыв об этом заказе'});
+    return res.status(400).json({error:'Оценить можно только завершённую покупку'});
+  }
+  res.status(201).json({id:result.rows[0].id});
 });
