@@ -42,3 +42,5 @@ tbody tr:last-child td { border-bottom:0; }
 .account-theme select { width:auto; margin:0; padding:6px; }
 .guest-theme { padding:0; }
 .guest-theme { font-size:0; }
+
+.account-retry { border:0; background:none; color:var(--accent); }

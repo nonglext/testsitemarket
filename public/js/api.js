@@ -16,6 +16,10 @@ export async function api(path, options = {}) {
     if (refreshed.ok) response = await request();
   }
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw Error(data.error || 'Ошибка запроса');
+  if (!response.ok) {
+    const error = new Error(data.error || (response.status === 404 ? 'Страница не найдена' : response.status === 403 ? 'Недостаточно прав' : response.status === 401 ? 'Войдите в аккаунт' : 'Ошибка запроса'));
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }

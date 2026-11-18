@@ -10,12 +10,14 @@ const random=()=>randomBytes(32).toString('hex');
 const credentials=z.object({email:z.email().transform(v=>v.toLowerCase()),password:z.string().min(10)});
 const cookie={httpOnly:true,sameSite:'lax',secure:process.env.PUBLIC_ORIGIN?.startsWith('https://'),path:'/'};
 export async function current(req,res,next){
+  let claims;
+  try { claims=jwt.verify(req.cookies.access,process.env.JWT_SECRET); }
+  catch { return res.status(401).json({error:'Войдите в аккаунт'}); }
   try{
-    const claims=jwt.verify(req.cookies.access,process.env.JWT_SECRET);
     const result=await db.query("SELECT u.id,u.nickname,u.email,p.theme,array_remove(array_agg(r.role),null) roles FROM sessions s JOIN users u ON u.id=s.user_id JOIN profiles p ON p.user_id=u.id LEFT JOIN user_roles r ON r.user_id=u.id WHERE s.id=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.status='active' GROUP BY u.id,p.theme",[claims.sid]);
     if(!result.rowCount)return res.status(401).json({error:'Войдите в аккаунт'});
     req.user=result.rows[0];next();
-  }catch{res.status(401).json({error:'Войдите в аккаунт'});}
+  }catch(error){next(error);}
 }
 auth.post('/register',async(req,res,next)=>{try{
   const data=credentials.extend({nickname:z.string().trim().min(3).max(32).regex(/^[\p{L}\p{N}_-]+$/u)}).parse(req.body);
@@ -40,5 +42,5 @@ auth.post('/login',async(req,res,next)=>{try{
   res.cookie('access',jwt.sign({sid:session.rows[0].id},process.env.JWT_SECRET,{expiresIn:'15m'}),{...cookie,maxAge:900000});
   res.cookie('refresh',refresh,{...cookie,maxAge:2592000000});res.json({id:user.id});
 }catch(error){next(error);}});
-auth.post('/refresh',async(req,res)=>{const refresh=random();const result=await db.query("UPDATE sessions SET refresh_hash=$2 WHERE refresh_hash=$1 AND revoked_at IS NULL AND expires_at>now() RETURNING id",[hash(req.cookies.refresh||''),hash(refresh)]);if(!result.rowCount)return res.sendStatus(401);res.cookie('access',jwt.sign({sid:result.rows[0].id},process.env.JWT_SECRET,{expiresIn:'15m'}),{...cookie,maxAge:900000});res.cookie('refresh',refresh,{...cookie,maxAge:2592000000});res.json({ok:true});});
+auth.post('/refresh',async(req,res)=>{const refresh=random();const result=await db.query("UPDATE sessions SET refresh_hash=$2 WHERE refresh_hash=$1 AND revoked_at IS NULL AND expires_at>now() AND EXISTS (SELECT 1 FROM users WHERE users.id=sessions.user_id AND users.status='active') RETURNING id",[hash(req.cookies.refresh||''),hash(refresh)]);if(!result.rowCount)return res.sendStatus(401);res.cookie('access',jwt.sign({sid:result.rows[0].id},process.env.JWT_SECRET,{expiresIn:'15m'}),{...cookie,maxAge:900000});res.cookie('refresh',refresh,{...cookie,maxAge:2592000000});res.json({ok:true});});
 auth.post('/logout',async(req,res)=>{await db.query('UPDATE sessions SET revoked_at=now() WHERE refresh_hash=$1',[hash(req.cookies.refresh||'')]);res.clearCookie('access');res.clearCookie('refresh');res.json({ok:true});});

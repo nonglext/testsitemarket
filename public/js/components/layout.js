@@ -84,5 +84,14 @@ export function layout() {
     actions.replaceChildren(menu);
     document.addEventListener('click', event => { if (!menu.contains(event.target)) menu.open = false; });
     document.addEventListener('keydown', event => { if (event.key === 'Escape' && menu.open) { menu.open = false; summary.focus(); } });
-  }).catch(showGuest);
+  }).catch(error => {
+    if (error.status === 401) return showGuest();
+    actions.replaceChildren();
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'header-login account-retry';
+    retry.textContent = 'Не удалось загрузить аккаунт. Обновить';
+    retry.addEventListener('click', () => location.reload());
+    actions.append(retry);
+  });
 }
