@@ -24,7 +24,7 @@ export function purchaseControl(container,lot){
   }
   quantity.addEventListener('input',()=>{key=crypto.randomUUID();result.replaceChildren();validateQuantity()});
   quantity.addEventListener('invalid',validateQuantity);
-  form.addEventListener('submit',async event=>{event.preventDefault();buy.disabled=true;result.textContent='Оформляем покупку…';try{const order=await api('/demo/orders',{method:'POST',body:JSON.stringify({lotId:Number(lot.id),quantity:Number(quantity.value),requestKey:key})});location.href='/orders/'+order.id}catch(error){showError(result,error);if(error.message.includes('Недостаточно тестовых средств'))result.append(' ',textLink('Пополнить баланс','/wallet'));buy.disabled=false;}});
+  form.addEventListener('submit',async event=>{event.preventDefault();buy.disabled=true;quantity.readOnly=true;result.textContent='Оформляем покупку…';try{const order=await api('/demo/orders',{method:'POST',body:JSON.stringify({lotId:Number(lot.id),quantity:Number(quantity.value),requestKey:key})});location.href='/orders/'+order.id}catch(error){showError(result,error);if(error.message.includes('Недостаточно тестовых средств'))result.append(' ',textLink('Пополнить баланс','/wallet'));buy.disabled=false;quantity.readOnly=lot.quantity===1;}});
 }
 
 export async function renderDemo(root,page){
@@ -55,7 +55,7 @@ async function wallet(root){
   const button=document.createElement('button');button.className='button';button.textContent='Пополнить тестовый баланс';
   const result=document.createElement('p');result.setAttribute('role','status');form.append(amountLabel,button,result);balance.append(form);root.append(balance);
   let key=crypto.randomUUID();amount.addEventListener('input',()=>{key=crypto.randomUUID()});
-  form.onsubmit=async event=>{event.preventDefault();button.disabled=true;result.textContent='Пополняем…';try{await api('/demo/wallet/topup',{method:'POST',body:JSON.stringify({amount:amount.value,requestKey:key})});location.reload()}catch(error){showError(result,error);button.disabled=false}};
+  form.onsubmit=async event=>{event.preventDefault();button.disabled=true;amount.readOnly=true;result.textContent='Пополняем…';try{await api('/demo/wallet/topup',{method:'POST',body:JSON.stringify({amount:amount.value,requestKey:key})});location.reload()}catch(error){showError(result,error);button.disabled=false;amount.readOnly=false}};
   const heading=document.createElement('h2');heading.textContent='История операций';root.append(heading);
   const names={topup:'Тестовое пополнение',purchase:'Покупка',sale:'Продажа'};
   const list=table(['Дата','Операция','Сумма'],wallet.history.map(row=>[date(row.created_at),row.order_id?textLink(names[row.kind]+' №'+row.order_id,'/orders/'+row.order_id):names[row.kind],row.amount+' тест. USDT']));if(!wallet.history.length)list.querySelector('tbody td').textContent='Операций пока нет';root.append(list);
@@ -134,15 +134,16 @@ async function chat(root,orderId,viewerId,refreshOrder){
     try{
       await api('/me');
       if(stopped)return;
-      socket=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
-      socket.onopen=()=>{retryDelay=1000;refresh().catch(()=>{});refreshOrder().catch(()=>{})};
-      socket.onmessage=event=>{try{const eventData=JSON.parse(event.data);if(eventData.orderId!==String(orderId))return;if(eventData.type==='message')refresh().catch(()=>{});if(eventData.type==='order')refreshOrder().catch(()=>{})}catch{}};
-      socket.onerror=()=>socket.close();
-      socket.onclose=()=>{if(stopped)return;retryTimer=setTimeout(connect,retryDelay);retryDelay=Math.min(retryDelay*2,30000)};
+      const connection=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
+      socket=connection;
+      connection.onopen=()=>{if(socket!==connection)return;retryDelay=1000;refresh().catch(()=>{});refreshOrder().catch(()=>{})};
+      connection.onmessage=event=>{try{const eventData=JSON.parse(event.data);if(eventData.orderId!==String(orderId))return;if(eventData.type==='message')refresh().catch(()=>{});if(eventData.type==='order')refreshOrder().catch(()=>{})}catch{}};
+      connection.onerror=()=>connection.close();
+      connection.onclose=()=>{if(stopped||socket!==connection)return;retryTimer=setTimeout(connect,retryDelay);retryDelay=Math.min(retryDelay*2,30000)};
     }catch{if(!stopped){retryTimer=setTimeout(connect,retryDelay);retryDelay=Math.min(retryDelay*2,30000)}}
   }
-  window.addEventListener('pagehide',()=>{stopped=true;clearTimeout(retryTimer);if(socket)socket.close()},{once:true});
+  window.addEventListener('pagehide',()=>{stopped=true;clearTimeout(retryTimer);if(socket)socket.close()});
   window.addEventListener('pageshow',event=>{if(event.persisted){stopped=false;connect()}});
-  await refresh();connect();
+  await refresh().catch(()=>{});connect();
   setInterval(()=>{if(!socket||socket.readyState!==WebSocket.OPEN){refresh().catch(()=>{});refreshOrder().catch(()=>{})}},10000);
 }

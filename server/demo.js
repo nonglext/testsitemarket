@@ -44,7 +44,7 @@ demo.post('/orders',async(req,res)=>{
     const debit=await c.query('UPDATE demo_wallets SET available=available-($2::numeric*$3) WHERE user_id=$1 AND available >= ($2::numeric*$3) RETURNING available',[req.user.id,item.price,data.quantity]);
     if(!debit.rowCount)throw bad('Недостаточно тестовых средств');
     const order=await c.query("INSERT INTO demo_orders(buyer_id,seller_id,lot_id,lot_title,quantity,unit_price,total,status,request_key) VALUES($1,$2,$3,$4,$5,$6,$6::numeric*$5::integer,'paid',$7) RETURNING id,total",[req.user.id,item.seller_id,item.id,item.title,data.quantity,item.price,data.requestKey]);
-    await c.query('UPDATE lots SET quantity=quantity-$2 WHERE id=$1',[item.id,data.quantity]);
+    await c.query('UPDATE lots SET quantity=quantity-$2,version=version+1 WHERE id=$1',[item.id,data.quantity]);
     await c.query("INSERT INTO demo_wallet_entries(user_id,amount,kind,order_id) VALUES($1,-$2::numeric,'purchase',$3)",[req.user.id,order.rows[0].total,order.rows[0].id]);
     return {id:order.rows[0].id};
   });

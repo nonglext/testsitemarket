@@ -6,7 +6,7 @@ export const catalog=Router();
 const id=z.coerce.number().int().positive();
 const admin=(req,res,next)=>req.user.roles.includes('admin')?next():res.sendStatus(403);
 catalog.get('/me/lots',current,async(req,res)=>{
-  const result=await db.query("SELECT l.id,l.title,l.description,l.price::text,l.quantity,l.status,c.name category FROM lots l JOIN categories c ON c.id=l.category_id WHERE l.seller_id=$1 AND l.status IN ('active','hidden') ORDER BY l.id DESC",[req.user.id]);
+  const result=await db.query("SELECT l.id,l.title,l.description,l.price::text,l.quantity,l.status,l.version,c.name category FROM lots l JOIN categories c ON c.id=l.category_id WHERE l.seller_id=$1 AND l.status IN ('active','hidden') ORDER BY l.id DESC",[req.user.id]);
   res.json(result.rows);
 });
 catalog.patch('/me/lots/:id',current,async(req,res)=>{
@@ -15,10 +15,16 @@ catalog.patch('/me/lots/:id',current,async(req,res)=>{
     description:z.string().trim().min(10).max(10000),
     price:z.string().regex(/^\d{1,12}(\.\d{1,6})?$/).refine(value=>Number(value)>0),
     quantity:z.number().int().min(0).max(100000),
-    status:z.enum(['active','hidden'])
+    status:z.enum(['active','hidden']),
+    version:z.number().int().nonnegative().optional()
   }).strict().parse(req.body);
-  const result=await db.query("UPDATE lots SET title=$3,description=$4,price=$5,quantity=$6,status=$7,version=version+1 WHERE id=$1 AND seller_id=$2 AND status IN ('active','hidden') RETURNING id",[id.parse(req.params.id),req.user.id,data.title,data.description,data.price,data.quantity,data.status]);
-  if(!result.rowCount)return res.status(404).json({error:'Предложение не найдено'});
+  const lotId=id.parse(req.params.id);
+  const result=await db.query("UPDATE lots SET title=$3,description=$4,price=$5,quantity=$6,status=$7,version=version+1 WHERE id=$1 AND seller_id=$2 AND status IN ('active','hidden') AND ($8::integer IS NULL OR version=$8) RETURNING id",[lotId,req.user.id,data.title,data.description,data.price,data.quantity,data.status,data.version??null]);
+  if(!result.rowCount){
+    const existing=await db.query("SELECT 1 FROM lots WHERE id=$1 AND seller_id=$2 AND status IN ('active','hidden')",[lotId,req.user.id]);
+    if(existing.rowCount)return res.status(409).json({error:'Предложение изменилось. Обновите страницу и повторите.'});
+    return res.status(404).json({error:'Предложение не найдено'});
+  }
   res.json(result.rows[0]);
 });
 catalog.delete('/me/lots/:id',current,async(req,res)=>{
